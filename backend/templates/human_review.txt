@@ -1,0 +1,19 @@
+[HR REVIEW REQUIRED - AUTOMATION ESCALATION]
+
+Hello HR Team,
+
+The automated email system has flagged an incoming email for human review.
+
+--- TRIAGE SUMMARY ---
+Sender: {candidate_name} <{sender_email}>
+Subject: {subject}
+Detected Intent: {intent_type}
+Confidence Score: {confidence}
+Review Reason: {reason}
+
+--- ORIGINAL EMAIL CONTENT ---
+{original_body}
+
+---
+Please review this email and respond to the candidate directly as appropriate.
+Automated Email Routing System

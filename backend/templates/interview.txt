@@ -1,0 +1,11 @@
+Dear {candidate_name},
+
+Thank you for contacting us regarding your interview.
+
+We have received your message. Our HR and scheduling team is currently reviewing your details and availability, and a member of our team will contact you shortly with the next steps and scheduling details.
+
+Thank you for your patience and cooperation.
+
+Best regards,
+{sender_name}
+Recruitment Team

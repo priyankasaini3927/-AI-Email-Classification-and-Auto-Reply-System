@@ -1,0 +1,42 @@
+[
+  {
+    "id": "MSG-001",
+    "sender": "alex.morgan@example.com",
+    "sender_name": "Alex Morgan",
+    "subject": "Application for Senior Python Backend Engineer",
+    "body": "Hi Hiring Team,\n\nI am writing to apply for the Senior Python Backend Engineer position at your company. Please find attached my resume and portfolio link.\n\nI have over 6 years of experience building distributed systems in Python and FastAPI. Looking forward to hearing from you.\n\nBest regards,\nAlex Morgan\nPhone: +1-555-0199",
+    "received_at": "2026-09-27T10:00:00Z"
+  },
+  {
+    "id": "MSG-002",
+    "sender": "sara.connor@example.com",
+    "sender_name": "Sara Connor",
+    "subject": "Re: Technical Interview Scheduling - Sara Connor",
+    "body": "Hello HR Team,\n\nI received your invitation for the round 2 technical interview. I am available this Thursday and Friday between 2 PM and 5 PM EST.\n\nPlease let me know if any of those slots work for the panel.\n\nThanks,\nSara Connor",
+    "received_at": "2026-09-27T11:15:00Z"
+  },
+  {
+    "id": "MSG-003",
+    "sender": "jordan.lee@example.com",
+    "sender_name": "Jordan Lee",
+    "subject": "Job Inquiry",
+    "body": "Hey there,\n\nI am interested in working with you guys in engineering. Do you have any open positions available?\n\nThanks,\nJordan",
+    "received_at": "2026-09-27T12:30:00Z"
+  },
+  {
+    "id": "MSG-004",
+    "sender": "david.k@example.com",
+    "sender_name": "David K",
+    "subject": "Urgent: Salary negotiation and contract dispute",
+    "body": "Dear HR Director,\n\nI am reviewing the offer letter sent yesterday. The compensation package does not match what was discussed verbally during the final interview. I require an immediate revision of clause 4 and a salary bump to $160,000 before I can sign.\n\nRegards,\nDavid K",
+    "received_at": "2026-09-27T14:00:00Z"
+  },
+  {
+    "id": "MSG-005",
+    "sender": "promo@marketing-blast.xyz",
+    "sender_name": "Sales Team",
+    "subject": "Boost your website traffic by 500% with our SEO tools!",
+    "body": "Hi HR Manager,\n\nAre you looking to scale your website traffic fast? We provide affordable SEO and backlink packages starting at only $99/mo. Click here to claim your discount.\n\nUnsubscribe from this list.",
+    "received_at": "2026-09-27T15:45:00Z"
+  }
+]

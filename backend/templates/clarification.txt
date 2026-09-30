@@ -1,0 +1,16 @@
+Dear {candidate_name},
+
+Thank you for reaching out to us.
+
+To help us process your request efficiently, we need a few additional details that appear to be missing from your message:
+
+- Updated resume / CV
+- Specific job title or role you are applying for / inquiring about
+- Your upcoming availability for potential discussions
+- Preferred contact information (phone number / email)
+
+Please reply directly to this email with the information above at your earliest convenience so our team can assist you further.
+
+Best regards,
+{sender_name}
+Recruitment Team

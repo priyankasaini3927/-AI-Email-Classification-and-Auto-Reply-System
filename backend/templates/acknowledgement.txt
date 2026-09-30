@@ -1,0 +1,11 @@
+Dear {candidate_name},
+
+Thank you for your interest in joining our team and for submitting your application.
+
+We have successfully received your submission. Our recruitment team reviews applications thoroughly to evaluate alignment with our current opportunities. If your profile matches our requirements, we will reach out to you directly regarding potential next steps.
+
+We appreciate your time and interest in our organization.
+
+Best regards,
+{sender_name}
+Recruitment Team

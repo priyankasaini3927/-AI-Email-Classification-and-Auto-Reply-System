@@ -1,0 +1,30 @@
+# Virtual Environment
+venv/
+.venv/
+
+# Environment Variables & Secrets
+.env
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Runtime Logs
+backend/logs/
+*.log
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Frontend dependencies/build
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
