@@ -114,7 +114,7 @@ export function LoginPage() {
 
   const handleQuickFill = () => {
     setEmail('admin@example.com');
-    setPassword('Admin@12345');
+    setPassword('');
     setErrorMessage('');
   };
 
@@ -172,7 +172,7 @@ export function LoginPage() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-5">
             
             {/* Field: EMAIL */}
             <div className="space-y-1.5">
@@ -188,9 +188,10 @@ export function LoginPage() {
                 </div>
                 <input
                   id="admin-email"
+                  name="email"
                   type="email"
+                  autoComplete="off"
                   required
-                  autoFocus
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@example.com"
@@ -213,7 +214,9 @@ export function LoginPage() {
                 </div>
                 <input
                   id="admin-password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
