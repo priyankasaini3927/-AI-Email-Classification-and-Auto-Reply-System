@@ -37,10 +37,11 @@ from config.settings import (
     THRESHOLD_AUTO_REPLY,
     THRESHOLD_CLARIFICATION,
 )
-from app.email_reader import fetch_unread_imap_emails, read_emails_from_json
+from app.email_reader import fetch_unread_imap_emails
 from app.preprocessor import preprocess_email
 from app.classifier import classify_email
-from app.confidence import calculate_confidence
+from app.confidence import calculate_confidence, SCORING_MATRIX
+import config.settings
 from app.router import determine_route, determine_action
 from app.responder import render_response, dispatch_response
 from app.logger import log_email_transaction
@@ -297,17 +298,66 @@ INITIAL_LOGS = [
 ]
 
 
+DEMO_SENDERS = {
+    "alex.morgan@example.com",
+    "sara.connor@example.com",
+    "jordan.lee@example.com",
+    "david.k@example.com",
+    "promo@marketing-blast.xyz",
+}
+
+PROCESSED_EMAILS_FILE = LOGS_DIR / "processed_emails.json"
+
+
+def save_processed_emails():
+    """Persists current DATA_EMAILS to disk for restart durability."""
+    try:
+        # Save only genuinely processed non-demo email records
+        records_to_save = [
+            e for e in DATA_EMAILS
+            if e.get("sender") not in DEMO_SENDERS and e.get("source") != "sample_emails"
+        ]
+        with open(PROCESSED_EMAILS_FILE, "w", encoding="utf-8") as f:
+            json.dump(records_to_save, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"[Storage] Failed to save processed_emails.json: {e}")
+
+
 def load_initial_stores():
-    emails = list(INITIAL_EMAILS)
-    logs = list(INITIAL_LOGS)
+    """
+    Loads genuinely processed real emails and audit logs.
+    Strictly isolates sample/demo presets so they never populate the normal dashboard.
+    """
+    emails = []
+    logs = []
+
+    # 1. Load saved real emails from processed_emails.json if present
+    if PROCESSED_EMAILS_FILE.exists():
+        try:
+            with open(PROCESSED_EMAILS_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+                if isinstance(saved, list):
+                    for item in saved:
+                        sender = item.get("sender", "")
+                        if sender not in DEMO_SENDERS and item.get("source") != "sample_emails":
+                            emails.append(item)
+        except Exception as e:
+            print(f"[Storage] Error reading processed_emails.json: {e}")
+
+    # 2. Reconstruct from audit.jsonl for logs and any real emails
     audit_file = LOGS_DIR / "audit.jsonl"
     if audit_file.exists():
         try:
             with open(audit_file, "r", encoding="utf-8") as f:
                 lines = [l.strip() for l in f if l.strip()]
-            for line in lines[-50:]:  # Load recent persistent audit entries
+            for line in lines[-100:]:
                 try:
                     rec = json.loads(line)
+                    sender = rec.get("sender", "N/A")
+                    # Strict isolation: never load demo test presets into normal dashboard
+                    if sender in DEMO_SENDERS or rec.get("source") == "sample_emails":
+                        continue
+
                     ts = rec.get("timestamp", "").replace("T", " ")[:19]
                     e_id = rec.get("email_id", "N/A")
                     dispatch_status = rec.get("dispatch_status", "")
@@ -316,7 +366,7 @@ def load_initial_stores():
                     log_item = {
                         "timestamp": ts,
                         "email_id": e_id,
-                        "sender": rec.get("sender", "N/A"),
+                        "sender": sender,
                         "intent": rec.get("detected_intent", "irrelevant"),
                         "confidence": float(rec.get("confidence_score", 0.0)),
                         "route": rec.get("route_selected", "human_review"),
@@ -333,31 +383,35 @@ def load_initial_stores():
                     if not any(l["email_id"] == e_id and l["timestamp"] == ts for l in logs):
                         logs.insert(0, log_item)
 
+                    # Only reconstruct if we have real content (never create synthetic text)
                     if not any(e["id"] == e_id for e in emails):
-                        emails.insert(0, {
-                            "id": e_id,
-                            "sender": rec.get("sender", "N/A"),
-                            "sender_name": rec.get("sender_name") or rec.get("sender", "").split("@")[0],
-                            "subject": rec.get("subject", "No Subject"),
-                            "body": f"Email {e_id} received from {rec.get('sender', 'N/A')}.",
-                            "timestamp": rec.get("timestamp", ""),
-                            "time_display": ts[11:16] if len(ts) >= 16 else "Recent",
-                            "intent_type": rec.get("detected_intent", "irrelevant"),
-                            "clarity_level": rec.get("clarity_level", "low"),
-                            "missing_information": rec.get("missing_information", False),
-                            "needs_human_review": rec.get("needs_human_review", False),
-                            "confidence": float(rec.get("confidence_score", 0.0)),
-                            "route": rec.get("route_selected", "human_review"),
-                            "action": rec.get("action_taken", "forward_to_hr"),
-                            "processing_status": proc_status,
-                            "attachment": None,
-                            "reason": rec.get("reason", "Audit logged transaction"),
-                            "response_preview": f"[{rec.get('action_taken', 'dispatched').upper()}] Dispatched to {rec.get('recipient', 'N/A')}",
-                        })
+                        real_body = rec.get("body")
+                        if real_body is not None and real_body != "":
+                            emails.insert(0, {
+                                "id": e_id,
+                                "sender": sender,
+                                "sender_name": rec.get("sender_name") or sender.split("@")[0],
+                                "subject": rec.get("subject", "No Subject"),
+                                "body": real_body,
+                                "timestamp": rec.get("timestamp", ""),
+                                "time_display": ts[11:16] if len(ts) >= 16 else "Recent",
+                                "intent_type": rec.get("detected_intent", "irrelevant"),
+                                "clarity_level": rec.get("clarity_level", "low"),
+                                "missing_information": rec.get("missing_information", False),
+                                "needs_human_review": rec.get("needs_human_review", False),
+                                "confidence": float(rec.get("confidence_score", 0.0)),
+                                "route": rec.get("route_selected", "human_review"),
+                                "action": rec.get("action_taken", "forward_to_hr"),
+                                "processing_status": proc_status,
+                                "attachment": rec.get("attachment", None),
+                                "reason": rec.get("reason", "Audit logged transaction"),
+                                "response_preview": rec.get("response_preview") or f"[{rec.get('action_taken', 'dispatched').upper()}] Dispatched to {rec.get('recipient', 'N/A')}",
+                            })
                 except Exception:
                     pass
         except Exception as e:
             print(f"Error loading audit.jsonl: {e}")
+
     return emails, logs
 
 
@@ -365,24 +419,28 @@ DATA_EMAILS, DATA_LOGS = load_initial_stores()
 
 DATA_SETTINGS = {
     "emailConnection": {
-        "gmailAccount": IMAP_USERNAME or "admin@example.com",
+        "gmailAccount": IMAP_USERNAME or SENDER_EMAIL or "",
         "imapServer": IMAP_SERVER,
         "imapPort": IMAP_PORT,
-        "imapStatus": "Connected" if IMAP_USERNAME else "Configured",
+        "imapStatus": "Connected" if IMAP_USERNAME else "Not Configured",
         "imapSsl": True,
         "smtpServer": SMTP_SERVER,
         "smtpPort": SMTP_PORT,
-        "smtpStatus": "Connected" if SMTP_USERNAME else "Configured",
+        "smtpStatus": "Connected" if SMTP_USERNAME else "Not Configured",
         "smtpTls": True,
         "lastPing": "Just now",
+        "isAccountConfigured": bool(IMAP_USERNAME or SENDER_EMAIL),
+        "passwordConfigured": bool(IMAP_PASSWORD or SMTP_PASSWORD),
+        "passwordStatus": "Masked (.env)" if (IMAP_PASSWORD or SMTP_PASSWORD) else "Not Configured",
     },
     "aiConfiguration": {
         "modelName": MODEL_NAME,
         "provider": "Google Gemini AI",
-        "apiKeyStatus": "Configured (Masked)",
-        "temperature": 0.0,
+        "apiKeyConfigured": bool(GEMINI_API_KEY),
+        "apiKeyStatus": "Configured" if GEMINI_API_KEY else "Not Configured",
+        "temperature": getattr(config.settings, "TEMPERATURE", 0.0),
         "systemPromptActive": True,
-        "classificationStatus": "Operational",
+        "classificationStatus": "Operational" if GEMINI_API_KEY else "Unavailable",
     },
     "automation": {
         "executionMode": EXECUTION_MODE,
@@ -391,7 +449,8 @@ DATA_SETTINGS = {
         "senderName": SENDER_NAME,
         "autoReplyThreshold": THRESHOLD_AUTO_REPLY,
         "clarificationThreshold": THRESHOLD_CLARIFICATION,
-    }
+    },
+    "scoringMatrix": SCORING_MATRIX,
 }
 
 
@@ -599,12 +658,42 @@ def get_settings(user: Dict[str, Any] = Depends(require_auth)):
     import config.settings
     current_mode = getattr(config.settings, "EXECUTION_MODE", "dry_run")
     DATA_SETTINGS["automation"]["executionMode"] = current_mode
+    DATA_SETTINGS["automation"]["autoReplyThreshold"] = getattr(config.settings, "THRESHOLD_AUTO_REPLY", 0.75)
+    DATA_SETTINGS["automation"]["clarificationThreshold"] = getattr(config.settings, "THRESHOLD_CLARIFICATION", 0.45)
+    DATA_SETTINGS["automation"]["hrEmail"] = getattr(config.settings, "HR_EMAIL", "")
+    DATA_SETTINGS["automation"]["senderEmail"] = getattr(config.settings, "SENDER_EMAIL", "")
+    DATA_SETTINGS["automation"]["senderName"] = getattr(config.settings, "SENDER_NAME", "")
+
+    # Sync email connection values from config.settings
+    account = getattr(config.settings, "IMAP_USERNAME", "") or getattr(config.settings, "SENDER_EMAIL", "")
+    DATA_SETTINGS["emailConnection"]["gmailAccount"] = account
+    DATA_SETTINGS["emailConnection"]["isAccountConfigured"] = bool(account)
+    DATA_SETTINGS["emailConnection"]["imapServer"] = getattr(config.settings, "IMAP_SERVER", "")
+    DATA_SETTINGS["emailConnection"]["imapPort"] = getattr(config.settings, "IMAP_PORT", 993)
+    DATA_SETTINGS["emailConnection"]["smtpServer"] = getattr(config.settings, "SMTP_SERVER", "")
+    DATA_SETTINGS["emailConnection"]["smtpPort"] = getattr(config.settings, "SMTP_PORT", 587)
+    DATA_SETTINGS["emailConnection"]["imapStatus"] = "Connected" if getattr(config.settings, "IMAP_USERNAME", "") else "Not Configured"
+    DATA_SETTINGS["emailConnection"]["smtpStatus"] = "Connected" if getattr(config.settings, "SMTP_USERNAME", "") else "Not Configured"
+    has_pwd = bool(getattr(config.settings, "IMAP_PASSWORD", "") or getattr(config.settings, "SMTP_PASSWORD", ""))
+    DATA_SETTINGS["emailConnection"]["passwordConfigured"] = has_pwd
+    DATA_SETTINGS["emailConnection"]["passwordStatus"] = "Masked (.env)" if has_pwd else "Not Configured"
+
+    # Sync AI configuration values from config.settings
+    has_key = bool(getattr(config.settings, "GEMINI_API_KEY", ""))
+    DATA_SETTINGS["aiConfiguration"]["modelName"] = getattr(config.settings, "MODEL_NAME", "gemini-2.5-flash-lite")
+    DATA_SETTINGS["aiConfiguration"]["apiKeyConfigured"] = has_key
+    DATA_SETTINGS["aiConfiguration"]["apiKeyStatus"] = "Configured" if has_key else "Not Configured"
+    DATA_SETTINGS["aiConfiguration"]["temperature"] = getattr(config.settings, "TEMPERATURE", 0.0)
+    DATA_SETTINGS["aiConfiguration"]["classificationStatus"] = "Operational" if has_key else "Unavailable"
+
+    DATA_SETTINGS["scoringMatrix"] = SCORING_MATRIX
     return DATA_SETTINGS
 
 
 @app.put("/api/settings")
 def update_settings(payload: SettingsUpdateRequest, user: Dict[str, Any] = Depends(require_auth)):
     """Updates application settings."""
+    import config.settings
     if payload.emailConnection:
         DATA_SETTINGS["emailConnection"].update(payload.emailConnection)
     if payload.aiConfiguration:
@@ -613,11 +702,29 @@ def update_settings(payload: SettingsUpdateRequest, user: Dict[str, Any] = Depen
         DATA_SETTINGS["automation"].update(payload.automation)
         if "executionMode" in payload.automation:
             mode = payload.automation["executionMode"].lower()
-            import config.settings
             import app.responder
             config.settings.EXECUTION_MODE = mode
             app.responder.EXECUTION_MODE = mode
-    return DATA_SETTINGS
+        if "autoReplyThreshold" in payload.automation:
+            try:
+                val = float(payload.automation["autoReplyThreshold"])
+                import app.router
+                config.settings.THRESHOLD_AUTO_REPLY = val
+                app.router.THRESHOLD_AUTO_REPLY = val
+                DATA_SETTINGS["automation"]["autoReplyThreshold"] = val
+            except (ValueError, TypeError):
+                pass
+        if "clarificationThreshold" in payload.automation:
+            try:
+                val = float(payload.automation["clarificationThreshold"])
+                import app.router
+                config.settings.THRESHOLD_CLARIFICATION = val
+                app.router.THRESHOLD_CLARIFICATION = val
+                DATA_SETTINGS["automation"]["clarificationThreshold"] = val
+            except (ValueError, TypeError):
+                pass
+    return get_settings(user)
+
 
 
 @app.post("/api/settings/execution-mode")
@@ -645,14 +752,18 @@ def get_status(user: Dict[str, Any] = Depends(require_auth)):
     """Returns system operational status."""
     import config.settings
     current_mode = getattr(config.settings, "EXECUTION_MODE", "dry_run")
+    imap_user = getattr(config.settings, "IMAP_USERNAME", IMAP_USERNAME)
+    smtp_user = getattr(config.settings, "SMTP_USERNAME", SMTP_USERNAME)
+    gemini_key = getattr(config.settings, "GEMINI_API_KEY", GEMINI_API_KEY)
+    model_name = getattr(config.settings, "MODEL_NAME", MODEL_NAME)
     return {
         "systemOnline": True,
-        "gmailConnected": bool(IMAP_USERNAME),
-        "imapConnected": bool(IMAP_USERNAME),
-        "smtpConnected": bool(SMTP_USERNAME),
-        "aiModelAvailable": bool(GEMINI_API_KEY),
+        "gmailConnected": bool(imap_user),
+        "imapConnected": bool(imap_user),
+        "smtpConnected": bool(smtp_user),
+        "aiModelAvailable": bool(gemini_key),
         "executionMode": current_mode,
-        "activeModel": MODEL_NAME,
+        "activeModel": model_name,
         "lastSync": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
@@ -665,25 +776,34 @@ def get_status(user: Dict[str, Any] = Depends(require_auth)):
 def run_ingestion(user: Dict[str, Any] = Depends(require_auth)):
     """
     POST /api/ingest
-    Fetches real Gmail emails via IMAP (or falls back to test dataset if inbox has no unread mail),
-    runs the full deterministic pipeline:
+    Fetches real Gmail emails via IMAP, runs the full deterministic pipeline:
     preprocessing -> Gemini classification -> confidence calculation -> routing -> responder -> logging.
     Returns processing summary and refreshed records.
+    Never falls back to sample/demo emails.
     """
-    raw_emails = []
     source = "gmail_imap"
+
+    if not IMAP_USERNAME or not IMAP_PASSWORD:
+        raise HTTPException(
+            status_code=400,
+            detail="Gmail IMAP credentials (IMAP_USERNAME / IMAP_PASSWORD) are not configured in .env."
+        )
 
     try:
         raw_emails = fetch_unread_imap_emails(limit=5)
     except Exception as e:
-        print(f"[Ingest] IMAP fetch exception: {e}")
-
-    # Fallback to test dataset if no unread inbox messages found
-    if not raw_emails:
-        sample_file = BASE_DIR / "tests" / "sample_emails.json"
-        if sample_file.exists():
-            source = "sample_emails"
-            raw_emails = read_emails_from_json(sample_file)[:3]
+        err_msg = str(e)
+        if "AUTHENTICATIONFAILED" in err_msg.upper():
+            friendly = "Authentication failed. Check your Gmail App Password in .env"
+        elif "timed out" in err_msg.lower():
+            friendly = f"Connection timed out reaching {IMAP_SERVER}:{IMAP_PORT}"
+        else:
+            friendly = f"Gmail IMAP connection error: {err_msg}"
+        print(f"[Ingest] IMAP fetch exception: {friendly}")
+        raise HTTPException(
+            status_code=502,
+            detail=friendly
+        )
 
     if not raw_emails:
         return {
@@ -692,8 +812,8 @@ def run_ingestion(user: Dict[str, Any] = Depends(require_auth)):
             "clarifications": 0,
             "hr_reviews": 0,
             "irrelevant": 0,
-            "source": "none",
-            "message": "No emails found to ingest.",
+            "source": "gmail_imap",
+            "message": "No unread emails found.",
             "items": []
         }
 
@@ -722,6 +842,15 @@ def run_ingestion(user: Dict[str, Any] = Depends(require_auth)):
             rendered = render_response(action, cleaned_email, classification, confidence)
             dispatch_result = dispatch_response(rendered)
 
+            email_id = cleaned_email.get("id") or f"MSG-0{len(DATA_EMAILS) + 101}"
+            cleaned_email["id"] = email_id
+            proc_status = "Success" if dispatch_result.get("status") != "send_failed" else "Failed"
+
+            response_body = rendered.get("body", "")
+            response_preview = response_body[:280] + ("..." if len(response_body) > 280 else "")
+            cleaned_email["response_preview"] = response_preview
+            cleaned_email["source"] = "gmail_imap"
+
             # 6. Structured Logging (Persistent to audit.jsonl)
             log_record = log_email_transaction(
                 email_data=cleaned_email,
@@ -732,13 +861,10 @@ def run_ingestion(user: Dict[str, Any] = Depends(require_auth)):
                 dispatch_result=dispatch_result
             )
 
-            email_id = cleaned_email.get("id") or f"MSG-0{len(DATA_EMAILS) + 101}"
-            proc_status = "Success" if dispatch_result.get("status") != "send_failed" else "Failed"
-
             email_record = {
                 "id": email_id,
                 "sender": cleaned_email.get("sender", "unknown"),
-                "sender_name": cleaned_email.get("sender_name", "Applicant"),
+                "sender_name": cleaned_email.get("sender_name") or cleaned_email.get("sender", "").split("@")[0],
                 "subject": cleaned_email.get("subject", "No Subject"),
                 "body": cleaned_email.get("body", ""),
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -753,7 +879,7 @@ def run_ingestion(user: Dict[str, Any] = Depends(require_auth)):
                 "processing_status": proc_status,
                 "attachment": cleaned_email.get("attachment", None),
                 "reason": classification.get("reason", "Processed via pipeline ingestion"),
-                "response_preview": rendered.get("body", "")[:280] + ("..." if len(rendered.get("body", "")) > 280 else ""),
+                "response_preview": response_preview,
             }
 
             DATA_EMAILS.insert(0, email_record)
@@ -791,6 +917,8 @@ def run_ingestion(user: Dict[str, Any] = Depends(require_auth)):
 
         except Exception as ex:
             print(f"[Ingest] Pipeline processing error on {raw_email.get('id')}: {ex}")
+
+    save_processed_emails()
 
     return {
         "processed": len(processed_items),
@@ -964,13 +1092,28 @@ def process_new_email(payload: ProcessEmailRequest, user: Dict[str, Any] = Depen
 
     # Response Rendering and Dispatch (Dry-run safe)
     cleaned_email = {
-        "id": next_id,
-        "sender": payload.sender,
-        "sender_name": payload.sender_name or payload.sender.split("@")[0],
-        "subject": payload.subject,
-        "body": payload.body,
+    "id": next_id,
+    "sender": payload.sender,
+    "sender_name": payload.sender_name or payload.sender.split("@")[0],
+    "subject": payload.subject,
+    "body": payload.body,
+    "attachment": payload.attachment,
     }
-    rendered = render_response(action, cleaned_email, classification, confidence)
+
+    rendered = render_response(
+        action,
+        cleaned_email,
+       classification,
+        confidence
+    )
+
+    response_body = rendered.get("body", "")
+    response_preview = (
+        payload.response_preview
+        or response_body[:280] + ("..." if len(response_body) > 280 else "")
+    )
+
+    cleaned_email["response_preview"] = response_preview
     dispatch_result = dispatch_response(rendered)
     proc_status = "Success" if dispatch_result.get("status") != "send_failed" else "Failed"
 
@@ -992,7 +1135,7 @@ def process_new_email(payload: ProcessEmailRequest, user: Dict[str, Any] = Depen
         "processing_status": proc_status,
         "attachment": payload.attachment,
         "reason": reason,
-        "response_preview": payload.response_preview or rendered.get("body", "")[:280] + ("..." if len(rendered.get("body", "")) > 280 else ""),
+        "response_preview": response_preview,
     }
 
     DATA_EMAILS.insert(0, email_record)
@@ -1025,5 +1168,8 @@ def process_new_email(payload: ProcessEmailRequest, user: Dict[str, Any] = Depen
         action=action,
         dispatch_result=dispatch_result
     )
+
+    if payload.sender not in DEMO_SENDERS:
+        save_processed_emails()
 
     return email_record

@@ -82,7 +82,11 @@ def main():
         emails = read_emails_from_json(custom_path)
     elif IMAP_USERNAME:
         print(f"Connecting to IMAP inbox ({IMAP_USERNAME})...")
-        emails = fetch_unread_imap_emails(limit=5)
+        try:
+            emails = fetch_unread_imap_emails(limit=5)
+        except Exception as e:
+            print(f"[IMAP] Connection error: {e}")
+            emails = []
         if not emails and sample_file.exists():
             print("No unread IMAP emails found. Falling back to sample_emails.json...")
             emails = read_emails_from_json(sample_file)

@@ -1,4 +1,43 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
+
+SCORING_MATRIX: List[Dict[str, str]] = [
+    {
+        "factor": "Base",
+        "condition": "Starting Value",
+        "adjustment": "0.00",
+        "color": "text-slate-400",
+    },
+    {
+        "factor": "Intent",
+        "condition": "job_application / interview_request",
+        "adjustment": "+0.40",
+        "color": "text-emerald-400",
+    },
+    {
+        "factor": "Clarity",
+        "condition": "high (+0.30) / medium (+0.15)",
+        "adjustment": "+0.30 / +0.15",
+        "color": "text-emerald-400",
+    },
+    {
+        "factor": "Completeness",
+        "condition": "missing_information = false (+0.10) / true (-0.20)",
+        "adjustment": "+0.10 / -0.20",
+        "color": "text-indigo-300",
+    },
+    {
+        "factor": "Escalation",
+        "condition": "needs_human_review = false (+0.10) / true (-0.30)",
+        "adjustment": "+0.10 / -0.30",
+        "color": "text-rose-400",
+    },
+    {
+        "factor": "Clamping",
+        "condition": "Max(0.00, Min(1.00, score))",
+        "adjustment": "[0.00, 1.00]",
+        "color": "text-cyan-400",
+    },
+]
 
 
 def calculate_confidence(classification: Dict[str, Any]) -> float:

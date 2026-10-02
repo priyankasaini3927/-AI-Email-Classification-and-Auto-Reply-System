@@ -73,34 +73,40 @@ export function RecentActivityFeed() {
       </div>
 
       <div className="divide-y divide-slate-800/50 my-2">
-        {activities.map((item, idx) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={idx}
-              onClick={() => setSelectedEmail(item.emailRef)}
-              className="py-2.5 flex items-start gap-3 hover:bg-slate-900/50 p-2 rounded-xl transition-all cursor-pointer group"
-            >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${item.iconBg} ${item.iconColor} flex-shrink-0 mt-0.5`}>
-                <Icon className="w-4 h-4" />
-              </div>
+        {activities.length === 0 ? (
+          <div className="py-8 text-center text-slate-500 text-xs">
+            No processed emails yet. Ingest unread Gmail messages to view pipeline activity.
+          </div>
+        ) : (
+          activities.map((item, idx) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={idx}
+                onClick={() => setSelectedEmail(item.emailRef)}
+                className="py-2.5 flex items-start gap-3 hover:bg-slate-900/50 p-2 rounded-xl transition-all cursor-pointer group"
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${item.iconBg} ${item.iconColor} flex-shrink-0 mt-0.5`}>
+                  <Icon className="w-4 h-4" />
+                </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-slate-200 group-hover:text-indigo-300 truncate">
-                    {item.title}
-                  </p>
-                  <span className="text-[10px] font-mono text-slate-500 flex-shrink-0">{item.time}</span>
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5 text-xs">
-                  <span className="text-slate-400">→</span>
-                  <span className="text-slate-300 text-[11px] font-medium truncate">{item.action}</span>
-                  <span className="text-[10px] font-mono text-slate-500 ml-auto">(score: {item.confidence.toFixed(2)})</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-200 group-hover:text-indigo-300 truncate">
+                      {item.title}
+                    </p>
+                    <span className="text-[10px] font-mono text-slate-500 flex-shrink-0">{item.time}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5 text-xs">
+                    <span className="text-slate-400">→</span>
+                    <span className="text-slate-300 text-[11px] font-medium truncate">{item.action}</span>
+                    <span className="text-[10px] font-mono text-slate-500 ml-auto">(score: {item.confidence.toFixed(2)})</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );

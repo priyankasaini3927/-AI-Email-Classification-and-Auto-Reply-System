@@ -74,4 +74,5 @@ def preprocess_email(raw_email: Dict[str, Any]) -> Dict[str, Any]:
         "body": cleaned_body,
         "combined_content": combined_content.strip(),
         "received_at": raw_email.get("received_at", ""),
+        "attachment": raw_email.get("attachment", None),
     }

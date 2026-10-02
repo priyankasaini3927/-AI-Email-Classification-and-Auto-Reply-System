@@ -7,10 +7,10 @@ export function IntentDonutChart() {
   const [hoveredSlice, setHoveredSlice] = useState(null);
 
   // Compute live counts or fallback to realistic stats
-  const jobAppCount = emails.filter((e) => e.intent_type === 'job_application').length || 11;
-  const interviewCount = emails.filter((e) => e.intent_type === 'interview_request').length || 6;
-  const clarCount = emails.filter((e) => e.intent_type === 'clarification').length || 4;
-  const spamCount = emails.filter((e) => e.intent_type === 'irrelevant').length || 3;
+  const jobAppCount =emails.filter((e) => e.intent_type === 'job_application').length;
+  const interviewCount =emails.filter((e) => e.intent_type === 'interview_request').length;
+  const clarCount =emails.filter((e) => e.intent_type === 'clarification').length;
+  const spamCount = emails.filter((e) => e.intent_type === 'irrelevant').length;
 
   const total = jobAppCount + interviewCount + clarCount + spamCount;
 

@@ -46,6 +46,8 @@ def log_email_transaction(
         "sender": email_data.get("sender", "N/A"),
         "sender_name": email_data.get("sender_name", "N/A"),
         "subject": email_data.get("subject", "N/A"),
+        "body": email_data.get("body", ""),
+        "attachment": email_data.get("attachment", None),
         "detected_intent": classification.get("intent_type", "N/A"),
         "clarity_level": classification.get("clarity_level", "N/A"),
         "missing_information": classification.get("missing_information", False),
@@ -56,6 +58,8 @@ def log_email_transaction(
         "reason": classification.get("reason", "N/A"),
         "dispatch_status": dispatch_result.get("status", "N/A"),
         "recipient": dispatch_result.get("recipient", "N/A"),
+        "response_preview": email_data.get("response_preview") or dispatch_result.get("response_preview", ""),
+        "source": email_data.get("source", "gmail_imap"),
     }
 
     # Log readable line to console/file

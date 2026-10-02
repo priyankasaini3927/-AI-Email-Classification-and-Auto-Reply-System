@@ -53,17 +53,6 @@ export function Header({ setMobileOpen }) {
           >
             <Menu className="w-5 h-5" />
           </button>
-          
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-100 tracking-tight">
-                Good Evening, Priyanka <span className="text-amber-300">✨</span>
-              </h1>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-400 font-medium">
-              Here’s what’s happening with your inbox today.
-            </p>
-          </div>
         </div>
 
         {/* Right: Date/Time, Status Badge & Action Controls */}

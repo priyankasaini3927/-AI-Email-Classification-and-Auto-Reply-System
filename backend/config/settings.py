@@ -32,6 +32,7 @@ except ImportError:
 # LLM Configuration (Google Gemini)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
 MODEL_NAME = os.getenv("MODEL_NAME", "gemini-2.5-flash-lite")
+TEMPERATURE = float(os.getenv("TEMPERATURE", "0.0"))
 
 
 # HR & Mail Settings

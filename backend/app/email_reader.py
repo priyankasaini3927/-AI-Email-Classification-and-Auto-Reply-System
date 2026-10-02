@@ -47,13 +47,15 @@ def fetch_unread_imap_emails(limit: int = 10) -> List[Dict[str, Any]]:
     """
     Connects to IMAP inbox and fetches unread emails.
     Returns a list of standardized raw email dictionaries.
+    Raises exception if connection or credentials fail.
     """
     if not IMAP_USERNAME or not IMAP_PASSWORD:
-        return []
+        raise ValueError("Gmail IMAP credentials (IMAP_USERNAME / IMAP_PASSWORD) are not configured in .env")
 
     emails = []
+    mail = None
     try:
-        mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
+        mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT, timeout=10)
         mail.login(IMAP_USERNAME, IMAP_PASSWORD)
         mail.select("INBOX")
 
@@ -66,7 +68,7 @@ def fetch_unread_imap_emails(limit: int = 10) -> List[Dict[str, Any]]:
 
         for e_id in target_ids:
             status, data = mail.fetch(e_id, "(RFC822)")
-            if status != "OK":
+            if status != "OK" or not data or not data[0]:
                 continue
 
             raw_email = data[0][1]
@@ -86,6 +88,17 @@ def fetch_unread_imap_emails(limit: int = 10) -> List[Dict[str, Any]]:
             body = _extract_email_body(msg)
             date_str = msg.get("Date", "")
 
+            # Attachment detection
+            attachment = None
+            if msg.is_multipart():
+                for part in msg.walk():
+                    content_disposition = str(part.get("Content-Disposition", ""))
+                    if "attachment" in content_disposition:
+                        fname = part.get_filename()
+                        if fname:
+                            attachment = _decode_mime_header(fname)
+                            break
+
             emails.append({
                 "id": e_id.decode("utf-8", errors="replace"),
                 "sender": sender,
@@ -93,12 +106,18 @@ def fetch_unread_imap_emails(limit: int = 10) -> List[Dict[str, Any]]:
                 "subject": subject,
                 "body": body,
                 "received_at": date_str,
+                "attachment": attachment,
             })
-
-        mail.close()
-        mail.logout()
-    except Exception as e:
-        print(f"[EmailReader] Error reading IMAP emails: {e}")
+    finally:
+        if mail:
+            try:
+                mail.close()
+            except Exception:
+                pass
+            try:
+                mail.logout()
+            except Exception:
+                pass
 
     return emails
 

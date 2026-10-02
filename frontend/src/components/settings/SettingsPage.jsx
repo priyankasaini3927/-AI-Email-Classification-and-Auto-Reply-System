@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import api from '../../services/api';
 import { 
@@ -19,7 +19,16 @@ import {
 } from 'lucide-react';
 
 export function SettingsPage() {
-  const { settings, status, updateSettings, updateExecutionMode, setConfirmModalConfig, addToast } = useApp();
+  const { 
+    settings, 
+    status, 
+    isLoading, 
+    updateSettings, 
+    updateExecutionMode, 
+    setConfirmModalConfig, 
+    addToast,
+    refreshData 
+  } = useApp();
 
   const [testingGmail, setTestingGmail] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
@@ -29,12 +38,27 @@ export function SettingsPage() {
   const [smtpResult, setSmtpResult] = useState(null);
   const [geminiResult, setGeminiResult] = useState(null);
 
+  const [isSavingThresholds, setIsSavingThresholds] = useState(false);
+
   const [autoThreshold, setAutoThreshold] = useState(
-    settings?.automation?.autoReplyThreshold || 0.75
+    typeof settings?.automation?.autoReplyThreshold === 'number'
+      ? settings.automation.autoReplyThreshold
+      : null
   );
   const [clarificationThreshold, setClarificationThreshold] = useState(
-    settings?.automation?.clarificationThreshold || 0.45
+    typeof settings?.automation?.clarificationThreshold === 'number'
+      ? settings.automation.clarificationThreshold
+      : null
   );
+
+  useEffect(() => {
+    if (typeof settings?.automation?.autoReplyThreshold === 'number') {
+      setAutoThreshold(settings.automation.autoReplyThreshold);
+    }
+    if (typeof settings?.automation?.clarificationThreshold === 'number') {
+      setClarificationThreshold(settings.automation.clarificationThreshold);
+    }
+  }, [settings?.automation?.autoReplyThreshold, settings?.automation?.clarificationThreshold]);
 
   const executionMode = status?.executionMode || settings?.automation?.executionMode || 'dry_run';
   const isDryRun = executionMode === 'dry_run';
@@ -115,15 +139,82 @@ export function SettingsPage() {
     }
   };
 
-  const handleSaveThresholds = () => {
-    updateSettings({
-      automation: {
-        ...settings?.automation,
-        autoReplyThreshold: autoThreshold,
-        clarificationThreshold: clarificationThreshold,
-      }
-    });
+  const handleSaveThresholds = async () => {
+    if (autoThreshold === null || clarificationThreshold === null) return;
+    setIsSavingThresholds(true);
+    try {
+      await updateSettings({
+        automation: {
+          ...settings?.automation,
+          autoReplyThreshold: autoThreshold,
+          clarificationThreshold: clarificationThreshold,
+        }
+      });
+    } finally {
+      setIsSavingThresholds(false);
+    }
   };
+
+  // Loading state if initial settings are fetching
+  if (isLoading && !settings) {
+    return (
+      <div className="space-y-6 animate-fade-in max-w-5xl pb-16">
+        <div>
+          <h2 className="text-xl font-extrabold text-slate-100 tracking-tight flex items-center gap-2">
+            <SettingsIcon className="w-5 h-5 text-indigo-400" />
+            <span>System Settings &amp; Configuration</span>
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Configure mail ingestion, Gemini AI model parameters, and deterministic routing thresholds
+          </p>
+        </div>
+        <div className="p-12 rounded-2xl bg-[#0d1322] border border-slate-800 shadow-xl flex flex-col items-center justify-center gap-3 text-slate-400">
+          <RefreshCw className="w-6 h-6 animate-spin text-indigo-400" />
+          <p className="text-sm font-medium text-slate-300">Loading system configuration...</p>
+          <p className="text-xs text-slate-500">Fetching active configuration and environment parameters from backend API</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state if settings could not be retrieved
+  if (!settings) {
+    return (
+      <div className="space-y-6 animate-fade-in max-w-5xl pb-16">
+        <div>
+          <h2 className="text-xl font-extrabold text-slate-100 tracking-tight flex items-center gap-2">
+            <SettingsIcon className="w-5 h-5 text-indigo-400" />
+            <span>System Settings &amp; Configuration</span>
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Configure mail ingestion, Gemini AI model parameters, and deterministic routing thresholds
+          </p>
+        </div>
+        <div className="p-8 rounded-2xl bg-[#0d1322] border border-rose-900/50 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-rose-200">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-semibold text-slate-100 text-sm">System Configuration Unavailable</p>
+              <p className="text-slate-400 leading-relaxed">
+                Could not retrieve operational configuration from the backend API.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => refreshData && refreshData()}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition-all cursor-pointer flex-shrink-0"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Retry Connection</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const isAccountConfigured = settings?.emailConnection?.isAccountConfigured ?? Boolean(settings?.emailConnection?.gmailAccount);
+  const isPasswordConfigured = settings?.emailConnection?.passwordConfigured ?? false;
+  const isApiKeyConfigured = settings?.aiConfiguration?.apiKeyConfigured ?? false;
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl pb-16">
@@ -173,11 +264,17 @@ export function SettingsPage() {
               <label className="block text-slate-400 mb-1">Target Ingestion Account</label>
               <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900/90 border border-slate-800">
                 <span className="font-mono text-slate-200">
-                  {settings?.emailConnection?.gmailAccount || 'Configured via .env'}
+                  {settings?.emailConnection?.gmailAccount || 'Not configured'}
                 </span>
-                <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Configured
-                </span>
+                {isAccountConfigured ? (
+                  <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Configured
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+                    <XCircle className="w-3.5 h-3.5" /> Not Configured
+                  </span>
+                )}
               </div>
             </div>
 
@@ -185,8 +282,12 @@ export function SettingsPage() {
               <div>
                 <label className="block text-slate-400 mb-1">IMAP Protocol (Ingestion)</label>
                 <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-0.5">
-                  <p className="font-mono text-slate-200">{settings?.emailConnection?.imapServer || 'imap.gmail.com'}</p>
-                  <p className="text-[10px] text-slate-400">Port {settings?.emailConnection?.imapPort || 993} • SSL</p>
+                  <p className="font-mono text-slate-200">
+                    {settings?.emailConnection?.imapServer || 'Not configured'}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    {settings?.emailConnection?.imapPort ? `Port ${settings.emailConnection.imapPort} • SSL` : 'Port unavailable'}
+                  </p>
                   <p className={`text-[10px] font-semibold ${status?.imapConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
                     {status?.imapConnected ? 'Connected' : 'Disconnected'}
                   </p>
@@ -196,8 +297,12 @@ export function SettingsPage() {
               <div>
                 <label className="block text-slate-400 mb-1">SMTP Protocol (Dispatch)</label>
                 <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-0.5">
-                  <p className="font-mono text-slate-200">{settings?.emailConnection?.smtpServer || 'smtp.gmail.com'}</p>
-                  <p className="text-[10px] text-slate-400">Port {settings?.emailConnection?.smtpPort || 587} • STARTTLS</p>
+                  <p className="font-mono text-slate-200">
+                    {settings?.emailConnection?.smtpServer || 'Not configured'}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    {settings?.emailConnection?.smtpPort ? `Port ${settings.emailConnection.smtpPort} • STARTTLS` : 'Port unavailable'}
+                  </p>
                   <p className={`text-[10px] font-semibold ${status?.smtpConnected ? 'text-emerald-400' : 'text-slate-400'}`}>
                     {status?.smtpConnected ? 'Connected' : 'Disconnected'}
                   </p>
@@ -210,9 +315,15 @@ export function SettingsPage() {
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/90">
                 <div className="flex items-center gap-2 text-slate-300">
                   <Lock className="w-4 h-4 text-slate-400" />
-                  <span className="font-mono">GMAIL_APP_PASSWORD: ••••••••••••••••</span>
+                  <span className="font-mono">
+                    GMAIL_APP_PASSWORD: {isPasswordConfigured ? '••••••••••••••••' : 'Not configured'}
+                  </span>
                 </div>
-                <span className="text-[10px] text-emerald-400 font-semibold">Masked (.env)</span>
+                <span className={`text-[10px] font-semibold ${
+                  isPasswordConfigured ? 'text-emerald-400' : 'text-slate-400'
+                }`}>
+                  {settings?.emailConnection?.passwordStatus || (isPasswordConfigured ? 'Masked (.env)' : 'Not Configured')}
+                </span>
               </div>
             </div>
           </div>
@@ -281,13 +392,17 @@ export function SettingsPage() {
               <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
                 <div>
                   <p className="font-bold text-slate-100 font-mono">
-                    {status?.activeModel || settings?.aiConfiguration?.modelName || 'gemini-2.5-flash-lite'}
+                    {settings?.aiConfiguration?.modelName || status?.activeModel || 'Not configured'}
                   </p>
-                  <p className="text-[11px] text-slate-400">Google Gemini Developer API</p>
+                  <p className="text-[11px] text-slate-400">
+                    {settings?.aiConfiguration?.provider || 'Google Gemini Developer API'}
+                  </p>
                 </div>
-                <span className="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 text-[10px] font-mono border border-indigo-500/20">
-                  Temperature: 0.0
-                </span>
+                {typeof settings?.aiConfiguration?.temperature === 'number' && (
+                  <span className="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 text-[10px] font-mono border border-indigo-500/20">
+                    Temperature: {settings.aiConfiguration.temperature}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -296,9 +411,15 @@ export function SettingsPage() {
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/90">
                 <div className="flex items-center gap-2 text-slate-300">
                   <Key className="w-4 h-4 text-indigo-400" />
-                  <span className="font-mono">GEMINI_API_KEY: ••••••••••••••••</span>
+                  <span className="font-mono">
+                    GEMINI_API_KEY: {isApiKeyConfigured ? '••••••••••••••••' : 'Not configured'}
+                  </span>
                 </div>
-                <span className="text-[10px] text-emerald-400 font-semibold">Configured</span>
+                <span className={`text-[10px] font-semibold ${
+                  isApiKeyConfigured ? 'text-emerald-400' : 'text-slate-400'
+                }`}>
+                  {settings?.aiConfiguration?.apiKeyStatus || (isApiKeyConfigured ? 'Configured' : 'Not Configured')}
+                </span>
               </div>
             </div>
 
@@ -417,19 +538,26 @@ export function SettingsPage() {
             <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-emerald-400">AUTO_REPLY Threshold</span>
-                <span className="font-mono text-sm font-bold text-slate-100">{autoThreshold.toFixed(2)}</span>
+                <span className="font-mono text-sm font-bold text-slate-100">
+                  {autoThreshold !== null && autoThreshold !== undefined ? autoThreshold.toFixed(2) : '--'}
+                </span>
               </div>
               <input
                 type="range"
                 min="0.50"
                 max="0.95"
                 step="0.05"
-                value={autoThreshold}
+                value={autoThreshold ?? 0.50}
+                disabled={autoThreshold === null}
                 onChange={(e) => setAutoThreshold(parseFloat(e.target.value))}
-                className="w-full accent-emerald-500 cursor-pointer"
+                className="w-full accent-emerald-500 cursor-pointer disabled:opacity-50"
               />
               <p className="text-[11px] text-slate-400">
-                Scores ≥ {autoThreshold.toFixed(2)} automatically trigger acknowledgement or interview dispatch.
+                {autoThreshold !== null && autoThreshold !== undefined ? (
+                  <>Scores ≥ {autoThreshold.toFixed(2)} automatically trigger acknowledgement or interview dispatch.</>
+                ) : (
+                  <>Threshold loaded from backend.</>
+                )}
               </p>
             </div>
 
@@ -437,19 +565,26 @@ export function SettingsPage() {
             <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-amber-400">CLARIFICATION Threshold</span>
-                <span className="font-mono text-sm font-bold text-slate-100">{clarificationThreshold.toFixed(2)}</span>
+                <span className="font-mono text-sm font-bold text-slate-100">
+                  {clarificationThreshold !== null && clarificationThreshold !== undefined ? clarificationThreshold.toFixed(2) : '--'}
+                </span>
               </div>
               <input
                 type="range"
                 min="0.20"
                 max="0.70"
                 step="0.05"
-                value={clarificationThreshold}
+                value={clarificationThreshold ?? 0.20}
+                disabled={clarificationThreshold === null}
                 onChange={(e) => setClarificationThreshold(parseFloat(e.target.value))}
-                className="w-full accent-amber-500 cursor-pointer"
+                className="w-full accent-amber-500 cursor-pointer disabled:opacity-50"
               />
               <p className="text-[11px] text-slate-400">
-                Scores between {clarificationThreshold.toFixed(2)} and {(autoThreshold - 0.01).toFixed(2)} trigger clarification queries. Scores &lt; {clarificationThreshold.toFixed(2)} escalate to HR.
+                {clarificationThreshold !== null && autoThreshold !== null ? (
+                  <>Scores between {clarificationThreshold.toFixed(2)} and {(autoThreshold - 0.01).toFixed(2)} trigger clarification queries. Scores &lt; {clarificationThreshold.toFixed(2)} escalate to HR.</>
+                ) : (
+                  <>Threshold loaded from backend.</>
+                )}
               </p>
             </div>
           </div>
@@ -457,9 +592,10 @@ export function SettingsPage() {
           <div className="flex justify-end">
             <button
               onClick={handleSaveThresholds}
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-900/30 transition-all cursor-pointer"
+              disabled={isSavingThresholds || autoThreshold === null || clarificationThreshold === null}
+              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-900/30 transition-all cursor-pointer disabled:opacity-50"
             >
-              Save Threshold Configuration
+              {isSavingThresholds ? 'Saving...' : 'Save Threshold Configuration'}
             </button>
           </div>
         </div>
@@ -483,36 +619,23 @@ export function SettingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                <tr>
-                  <td className="py-2 px-3 font-semibold text-slate-200">Base</td>
-                  <td className="py-2 px-3">Starting Value</td>
-                  <td className="py-2 px-3 text-right text-slate-400">0.00</td>
-                </tr>
-                <tr>
-                  <td className="py-2 px-3 font-semibold text-slate-200">Intent</td>
-                  <td className="py-2 px-3">job_application / interview_request</td>
-                  <td className="py-2 px-3 text-right text-emerald-400">+0.40</td>
-                </tr>
-                <tr>
-                  <td className="py-2 px-3 font-semibold text-slate-200">Clarity</td>
-                  <td className="py-2 px-3">high (+0.30) / medium (+0.15)</td>
-                  <td className="py-2 px-3 text-right text-emerald-400">+0.30 / +0.15</td>
-                </tr>
-                <tr>
-                  <td className="py-2 px-3 font-semibold text-slate-200">Completeness</td>
-                  <td className="py-2 px-3">missing_information = false (+0.10) / true (-0.20)</td>
-                  <td className="py-2 px-3 text-right text-indigo-300">+0.10 / -0.20</td>
-                </tr>
-                <tr>
-                  <td className="py-2 px-3 font-semibold text-slate-200">Escalation</td>
-                  <td className="py-2 px-3">needs_human_review = false (+0.10) / true (-0.30)</td>
-                  <td className="py-2 px-3 text-right text-rose-400">+0.10 / -0.30</td>
-                </tr>
-                <tr>
-                  <td className="py-2 px-3 font-semibold text-slate-200">Clamping</td>
-                  <td className="py-2 px-3">Max(0.00, Min(1.00, score))</td>
-                  <td className="py-2 px-3 text-right text-cyan-400">[0.00, 1.00]</td>
-                </tr>
+                {Array.isArray(settings?.scoringMatrix) && settings.scoringMatrix.length > 0 ? (
+                  settings.scoringMatrix.map((item, idx) => (
+                    <tr key={idx}>
+                      <td className="py-2 px-3 font-semibold text-slate-200">{item.factor}</td>
+                      <td className="py-2 px-3">{item.condition}</td>
+                      <td className={`py-2 px-3 text-right ${item.color || 'text-slate-300'}`}>
+                        {item.adjustment}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="py-4 px-3 text-center text-slate-400">
+                      Scoring matrix definitions provided by backend.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

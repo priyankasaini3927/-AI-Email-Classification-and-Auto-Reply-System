@@ -1,4 +1,5 @@
 from typing import Literal
+import config.settings
 from config.settings import THRESHOLD_AUTO_REPLY, THRESHOLD_CLARIFICATION
 
 RouteType = Literal["auto_reply", "clarification", "human_review"]
@@ -7,14 +8,16 @@ ActionType = Literal["send_acknowledgement", "send_interview_info", "request_cla
 
 def determine_route(confidence: float) -> RouteType:
     """
-    Evaluates confidence score against fixed thresholds:
-    - confidence >= 0.75: auto_reply
-    - confidence >= 0.45: clarification
-    - confidence < 0.45:  human_review
+    Evaluates confidence score against configured thresholds:
+    - confidence >= THRESHOLD_AUTO_REPLY: auto_reply
+    - confidence >= THRESHOLD_CLARIFICATION: clarification
+    - confidence < THRESHOLD_CLARIFICATION:  human_review
     """
-    if confidence >= THRESHOLD_AUTO_REPLY:
+    auto_th = getattr(config.settings, "THRESHOLD_AUTO_REPLY", THRESHOLD_AUTO_REPLY)
+    clar_th = getattr(config.settings, "THRESHOLD_CLARIFICATION", THRESHOLD_CLARIFICATION)
+    if confidence >= auto_th:
         return "auto_reply"
-    elif confidence >= THRESHOLD_CLARIFICATION:
+    elif confidence >= clar_th:
         return "clarification"
     else:
         return "human_review"

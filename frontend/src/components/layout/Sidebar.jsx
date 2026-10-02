@@ -42,7 +42,7 @@ export function Sidebar({ mobileOpen, setMobileOpen }) {
       path: '/emails',
       label: 'Emails',
       icon: Mail,
-      badge: emails.length || 24,
+      badge: emails.length,
     },
     {
       id: 'logs',
